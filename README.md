@@ -6,10 +6,7 @@ A type-safe HTTP client for Android and Java.
 
 For more information please see [the website][1].
 
---------
-增加mapbody注解
- @POST("http://localhost:9990/grandtechmap-collect-service-fs/api/test")
-    Call<Map<String,Object>> contributors(@MapBody(value = "x") double x, @MapBody(value = "y") double y, @MapBody(value = "fullname") boolean isFullName);
+
 Download
 --------
 
@@ -54,3 +51,8 @@ License
  [proguard file]: https://github.com/square/retrofit/blob/master/retrofit/src/main/resources/META-INF/proguard/retrofit2.pro
  [okhttp proguard]: https://square.github.io/okhttp/r8_proguard/
  [okio proguard]: https://square.github.io/okio/#r8-proguard
+ 
+ --------
+增加mapbody注解
+ @POST("http://localhost:9990/grandtechmap-collect-service-fs/api/test")
+    Call<Map<String,Object>> contributors(@MapBody(value = "x") double x, @MapBody(value = "y") double y, @MapBody(value = "fullname") boolean isFullName);
