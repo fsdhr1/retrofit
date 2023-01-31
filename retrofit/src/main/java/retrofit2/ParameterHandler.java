@@ -16,6 +16,7 @@
 package retrofit2;
 
 import java.io.IOException;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.util.Map;
@@ -23,6 +24,7 @@ import java.util.Objects;
 import javax.annotation.Nullable;
 import okhttp3.MultipartBody;
 import okhttp3.RequestBody;
+import retrofit2.http.MapBody;
 
 abstract class ParameterHandler<T> {
   abstract void apply(RequestBuilder builder, @Nullable T value) throws IOException;
@@ -138,6 +140,7 @@ abstract class ParameterHandler<T> {
       if (queryValue == null) return; // Skip converted but null values
 
       builder.addQueryParam(name, queryValue, encoded);
+
     }
   }
 
@@ -416,6 +419,34 @@ abstract class ParameterHandler<T> {
       }
     }
   }
+  //TODO fs modify
+  public static class MapBody<T> extends ParameterHandler<T> {
+    private final Method method;
+    private final int p;
+    private final Converter<T, RequestBody> converter;
+    public final String name;
+    public MapBody(Method method, int p,Converter<T, RequestBody> converter, String name) {
+      this.method = method;
+    //  this.annotations = annotations;
+      this.converter = converter;
+      this.p = p;
+      this.name = name;
+    }
+
+    @Override
+    void apply(RequestBuilder builder, @Nullable T value) throws IOException {
+      if (value == null) {
+        throw Utils.parameterError(method, p, "Body parameter value must not be null.");
+      }
+      RequestBody body;
+      try {
+        body = converter.convert(value);
+      } catch (IOException e) {
+        throw Utils.parameterError(method, e, p, "Unable to convert " + value + " to RequestBody");
+      }
+      builder.setBody(body);
+    }
+  }
 
   static final class Body<T> extends ParameterHandler<T> {
     private final Method method;
@@ -455,4 +486,6 @@ abstract class ParameterHandler<T> {
       builder.addTag(cls, value);
     }
   }
+
+
 }

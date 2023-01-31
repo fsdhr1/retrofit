@@ -25,6 +25,7 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +49,7 @@ import retrofit2.http.HEAD;
 import retrofit2.http.HTTP;
 import retrofit2.http.Header;
 import retrofit2.http.HeaderMap;
+import retrofit2.http.MapBody;
 import retrofit2.http.Multipart;
 import retrofit2.http.OPTIONS;
 import retrofit2.http.PATCH;
@@ -97,6 +99,7 @@ final class RequestFactory {
     @SuppressWarnings("unchecked") // It is an error to invoke a method with the wrong arg types.
     ParameterHandler<Object>[] handlers = (ParameterHandler<Object>[]) parameterHandlers;
 
+
     int argumentCount = args.length;
     if (argumentCount != handlers.length) {
       throw new IllegalArgumentException(
@@ -106,6 +109,8 @@ final class RequestFactory {
               + handlers.length
               + ")");
     }
+
+
 
     RequestBuilder requestBuilder =
         new RequestBuilder(
@@ -122,11 +127,31 @@ final class RequestFactory {
       // The Continuation is the last parameter and the handlers array contains null at that index.
       argumentCount--;
     }
-
+    //Todo modify fs
+    Map<String,Object> param = new HashMap<>();
+    for (int i = 0; i < argumentCount; i++) {
+      if(handlers[i] instanceof ParameterHandler.MapBody){
+        String name = ((ParameterHandler.MapBody) handlers[i]).name;
+        if(name == null){
+          continue;
+        }
+        Object arg = args[i];
+        param.put(name,arg);
+      }
+    }
+    int mapbodys = 0;
     List<Object> argumentList = new ArrayList<>(argumentCount);
     for (int p = 0; p < argumentCount; p++) {
       argumentList.add(args[p]);
-      handlers[p].apply(requestBuilder, args[p]);
+      if(handlers[p] instanceof ParameterHandler.MapBody){
+        if(mapbodys == 0){
+          handlers[p].apply(requestBuilder, param);
+          mapbodys = 1;
+        }
+      }else {
+        handlers[p].apply(requestBuilder, args[p]);
+      }
+
     }
 
     return requestBuilder.get().tag(Invocation.class, new Invocation(method, argumentList)).build();
@@ -152,6 +177,7 @@ final class RequestFactory {
     boolean gotField;
     boolean gotPart;
     boolean gotBody;
+    boolean gotMapBody;
     boolean gotPath;
     boolean gotQuery;
     boolean gotQueryName;
@@ -422,7 +448,7 @@ final class RequestFactory {
         Converter<?, String> converter = retrofit.stringConverter(type, annotations);
         return new ParameterHandler.Path<>(method, p, name, converter, path.encoded());
 
-      } else if (annotation instanceof Query) {
+      }  else if (annotation instanceof Query) {
         validateResolvableType(p, type);
         Query query = (Query) annotation;
         String name = query.value();
@@ -769,12 +795,38 @@ final class RequestFactory {
 
         PartMap partMap = (PartMap) annotation;
         return new ParameterHandler.PartMap<>(method, p, valueConverter, partMap.encoding());
+        //TODO fs modify 在这修改
+      } else if (annotation instanceof MapBody) {
+        if (gotBody) {
+          throw parameterError(method, p, "A @MapBody parameter must not come after a @gotBody.");
+        }
+        if (gotQueryName) {
+          throw parameterError(method, p, "A @MapBody parameter must not come after a @QueryName.");
+        }
+        if (gotQueryMap) {
+          throw parameterError(method, p, "A @MapBody parameter must not come after a @QueryMap.");
+        }
+
+        gotMapBody = true;
+        {
+          Converter<?, RequestBody> converter;
+          try {
+            converter = retrofit.requestBodyConverter(Map.class, annotations, methodAnnotations);
+          } catch (RuntimeException e) {
+            // Wide exception range because factories are user code.
+            throw parameterError(method, e, p, "Unable to create @Body converter for %s", type);
+          }
+          return new ParameterHandler.MapBody<>(method, p,converter, ((MapBody) annotation).value());
+        }
 
       } else if (annotation instanceof Body) {
         validateResolvableType(p, type);
         if (isFormEncoded || isMultipart) {
           throw parameterError(
               method, p, "@Body parameters cannot be used with form or multi-part encoding.");
+        }
+        if (gotMapBody) {
+          throw parameterError(method, p, "A @Body parameter must not come after a @gotMapBody.");
         }
         if (gotBody) {
           throw parameterError(method, p, "Multiple @Body method annotations found.");
